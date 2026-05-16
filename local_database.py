@@ -1,20 +1,40 @@
+import os
 import pandas as pd
+from notion_client import Client
+from dotenv import load_dotenv
 
-def remove_duplicates(df: pd.DataFrame):
+load_dotenv()
+
+notion = Client(auth=os.getenv("notion_key"))
+LOCAL_DB_FILE = 'local_database.csv'
+
+def _load_known_words() -> set:
     try:
-        csv_df = pd.read_csv("local_database.csv")
-        csv_words = set(csv_df.iloc[:, 0].str.lower().dropna())
+        df = pd.read_csv(LOCAL_DB_FILE)
+        return set(df.iloc[:, 0].str.lower().dropna())
     except (pd.errors.EmptyDataError, FileNotFoundError):
-        csv_df = pd.DataFrame()
-        csv_words = set()
+        return set()
 
-    mask = ~df.iloc[:, 0].str.lower().isin(csv_words)
-    new_words_df = df[mask].reset_index(drop=True)
+def is_known_word(word: str) -> bool:
+    """Return True if this word has already been processed."""
+    return word.lower() in _load_known_words()
 
-    # Append new words to the CSV
-    if not new_words_df.empty:
-        new_col = new_words_df.iloc[:, [0]]
-        updated_csv_df = pd.concat([csv_df, new_col], ignore_index=True)
-        updated_csv_df.to_csv("local_database.csv", index=False)
+def mark_word_done(word: str, page_id: str):
+    """
+    Record the word as processed locally and archive it from Notion.
+    Called only after the word has been successfully saved to the CSV.
+    """
+    # 1. Add to local database
+    known = _load_known_words()
+    if word.lower() not in known:
+        file_exists = os.path.exists(LOCAL_DB_FILE) and os.path.getsize(LOCAL_DB_FILE) > 0
+        with open(LOCAL_DB_FILE, mode='a', newline='', encoding='utf-8') as f:
+            if not file_exists:
+                f.write('Word\n')
+            f.write(f'{word}\n')
 
-    return new_words_df
+    # 2. Archive the page in Notion
+    try:
+        notion.pages.update(page_id=page_id, archived=True)
+    except Exception as e:
+        print(f"Warning: could not archive '{word}' from Notion (page_id={page_id}): {e}")
