@@ -1,44 +1,29 @@
 import os
 from dotenv import load_dotenv
-import pandas as pd
 from notion_client import Client
+from notion_utils import get_data_source_id, paginate_data_source
 
 load_dotenv()
 
-notion = Client(auth=os.getenv("notion_key"))
+notion_key = os.getenv("notion_key")
 db_id = os.getenv("database")
+
+if not notion_key:
+    raise RuntimeError("Missing 'notion_key' in .env")
+if not db_id:
+    raise RuntimeError("Missing 'database' in .env")
+
+notion = Client(auth=notion_key)
 
 
 def clear_database():
-    has_more = True
-    start_cursor = None
-
-    # 1. Retrieve the underlying Data Source ID (just like in get_words)
-    db_info = notion.databases.retrieve(database_id=db_id)
-    data_source_id = db_info["data_sources"][0]["id"]
+    data_source_id = get_data_source_id(notion, db_id)
 
     deleted_count = 0
     print("Fetching and deleting rows... This might take a moment depending on the size.")
 
-    # Handle pagination to make sure we get every single row
-    while has_more:
-        # 2. Query the data_source to get the current batch of rows
-        response = notion.data_sources.query(
-            data_source_id=data_source_id,
-            start_cursor=start_cursor
-        )
-        
-        results = response.get("results", [])
-        
-        # 3. Loop through the results and archive (delete) each page
-        for page in results:
-            notion.pages.update(
-                page_id=page["id"], 
-                archived=True
-            )
-            deleted_count += 1
-            
-        has_more = response.get("has_more")
-        start_cursor = response.get("next_cursor")
+    for page in paginate_data_source(notion, data_source_id):
+        notion.pages.update(page_id=page["id"], archived=True)
+        deleted_count += 1
 
     print(f"Successfully cleared {deleted_count} words from the database!")

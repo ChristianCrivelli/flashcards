@@ -5,10 +5,14 @@ import os
 
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("gemini_key"))
+gemini_key = os.getenv("gemini_key")
+if not gemini_key:
+    raise RuntimeError("Missing 'gemini_key' in .env")
+
+client = genai.Client(api_key=gemini_key)
 
 def get_definition(word):
-    
+
     # 1. Free Dictionary API
     try:
         response = requests.get(f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}")
@@ -37,5 +41,5 @@ def get_definition(word):
         model="gemini-2.5-flash",
         contents=f"Give me a single, concise dictionary-style definition for the word: '{word}'. Return only the definition, no extra text."
     )
-    
-    return result.text.strip()
+
+    return result.text.strip()  
