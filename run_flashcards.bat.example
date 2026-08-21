@@ -2,8 +2,9 @@
 :: Change directory to your local flashcards repository
 cd /d "C:\path\to\your\flashcards-repo"
 
-:: Run the script
-python main.py
+:: Push any pending cards into Anki (requires Anki open with the
+:: AnkiConnect add-on installed). See issues #8/#9.
+python push_to_anki.py
 
 :: Keeps the window open so you can read any Python errors or logs
 pause

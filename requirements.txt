@@ -1,0 +1,5 @@
+pandas
+requests
+python-dotenv
+notion-client
+google-genai
