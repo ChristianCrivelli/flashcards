@@ -1,5 +1,2 @@
 # Local environment variables
 .env
-
-# Automation Files
-*.bat
