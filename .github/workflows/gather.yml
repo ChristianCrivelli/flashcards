@@ -1,0 +1,51 @@
+name: Gather flashcards
+
+# Runs the Notion -> definition -> pending_cards.csv gather pipeline on a
+# schedule, so new Notion words get picked up and turned into cards even
+# when you haven't run anything locally. See issue #8.
+#
+# This job only *gathers*: it commits/pushes local_database.csv,
+# needs_notion_cleanup.csv, and pending_cards.csv back to the repo via
+# db_sync.py. Nothing here touches Anki — pending_cards.csv is drained
+# into Anki locally via AnkiConnect (issue #9), since AnkiConnect only
+# ever listens on localhost on the machine actually running Anki and
+# can't be reached from a GitHub-hosted runner.
+
+on:
+  schedule:
+    # 13:00 UTC daily. GitHub Actions cron can drift a few minutes under
+    # load — that's fine here. Adjust the schedule to taste; cron syntax
+    # is minute hour day-of-month month day-of-week.
+    - cron: '0 13 * * *'
+  workflow_dispatch: {}  # lets you trigger a run manually from the Actions tab
+
+permissions:
+  contents: write  # gather.py needs to git push the updated database files
+
+jobs:
+  gather:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Configure git identity for db_sync.py's commits
+        run: |
+          git config user.name "flashcards-bot"
+          git config user.email "actions@users.noreply.github.com"
+
+      - name: Run gather pipeline
+        env:
+          notion_key: ${{ secrets.NOTION_KEY }}
+          database: ${{ secrets.NOTION_DATABASE }}
+          gemini_key: ${{ secrets.GEMINI_KEY }}
+          webster_key: ${{ secrets.WEBSTER_KEY }}
+        run: python gather.py
